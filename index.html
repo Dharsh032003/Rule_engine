@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rule Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+       
+        }
+        pre {
+            background: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            overflow: auto;
+        }
+        
+        .userInterface {
+            background-color: lightblue; /* Light blue background */
+            padding: 20px; /* Inner spacing */
+            border-radius: 5px; /* Rounded corners */
+            text-align: center; /* Center text inside the div */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Optional shadow for depth */
+        }
+    </style>
+</head>
+<body>
+<h1><u>Dharshini K</u></h1>
+<div class="userInterface">
+    <h1>Rule Engine</h1>
+
+    <h2>Create Rule</h2>
+    <form id="createRuleForm">
+        <input type="text" id="ruleName" placeholder="Rule Name" required><br>
+        <textarea id="ruleString" placeholder="Rule String" required rows="3" cols="50"></textarea><br>
+        <button type="submit">Create Rule</button>
+    </form>
+
+    <pre id="createRuleResult"></pre>
+
+    <h2>Evaluate Rules</h2>
+    <form id="evaluateForm">
+        <div id="ruleCheckboxes"></div>
+        <textarea id="evaluateJson" placeholder="request json" required rows="10" cols="50"></textarea><br>
+        <button type="button" id="delete" onclick="deleteRules()">Delete</button>
+        <button type="button" id="evaluate" onclick="evaluateRules(event)">Evaluate</button>
+    </form>
+
+    <div id="result"></div>
+</div>
+
+<script>
+    // Fetch and display rules
+    async function fetchRules() {
+        try {
+            const response = await axios.get('/api/rules');
+            const rules = response.data;
+            const checkboxes = document.getElementById('ruleCheckboxes');
+            checkboxes.innerHTML = '';
+            rules.forEach(rule => {
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `rule_${rule[0]}`;
+                checkbox.value = rule[0];
+                const label = document.createElement('label');
+                label.htmlFor = `rule_${rule[0]}`;
+                label.textContent = `${rule[1]}: ${rule[2]}`;
+                checkboxes.appendChild(checkbox);
+                checkboxes.appendChild(label);
+                checkboxes.appendChild(document.createElement('br'));
+            });
+        } catch (error) {
+            console.error('Error fetching rules:', error);
+        }
+    }
+
+    // Create rule
+    document.getElementById('createRuleForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('ruleName').value;
+        const ruleString = document.getElementById('ruleString').value;
+        console.log("Attempting to create rule. Name:", name, "Rule:", ruleString);
+        try {
+            const response = await axios.post('/api/rules', { name, rule: ruleString });
+            console.log("Server response:", response.data);
+            document.getElementById('createRuleResult').innerHTML =JSON.stringify(response.data, null, 2);
+            fetchRules();
+        } catch (error) {
+            console.error("Error creating rule:", error.st);
+            let errorMessage = "Unknown error occurred";
+            if (error.response) {
+                console.error("Response data:", error.response.data);
+                console.error("Response status:", error.response.status);
+                console.error("Response headers:", error.response.headers);
+                errorMessage = error.response.data.error || error.response.data.message || errorMessage;
+            } else if (error.request) {
+                console.error("No response received:", error.request);
+                errorMessage = "No response received from server";
+            } else {
+                console.error("Error details:", error.message);
+                errorMessage = error.message;
+            }
+            document.getElementById('createRuleResult').textContent = `Error creating rule: ${errorMessage}`;
+        }
+    });
+
+    // Evaluate rules
+   async function evaluateRules(event){
+        event.preventDefault();
+        const selectedRules = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+        const userData = document.getElementById('evaluateJson').value;
+        console.log("Selected rules:", selectedRules);
+        try {
+            const jsonObject = JSON.parse(userData);
+            console.log(jsonObject);
+        } catch (error) {
+            console.error("Error parsing JSON:", error);
+        }
+        try {
+            const response = await axios.post('/api/evaluate', { rule_ids: selectedRules, user_data: userData });
+            console.log("Evaluation response:", response.data);
+            document.getElementById('result').innerHTML = `<h3>Evaluation result: ${response.data.result}</h3>`;
+        } catch (error) {
+            console.error('Error during evaluation:', error);
+            document.getElementById('result').textContent = `Error evaluating rules: ${error.response ? error.response.data.error : error.message}`;
+        }
+    }
+
+   async function deleteRules() {
+    const selectedRules = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+    console.log("Selected rules:", selectedRules);
+
+    if (selectedRules.length === 0) {
+        alert("Please select at least one rule to delete.");
+        return;
+    }
+
+    try {
+        // Sending the IDs in the URL as query parameters
+        const response = await axios.delete(`/api/rules`, { data: { rule_ids: selectedRules } });
+        console.log("Delete response:", response.data);
+        fetchRules();  // Refresh the list of rules
+    } catch (error) {
+        console.error('Error deleting rules:', error);
+        document.getElementById('result').textContent = `Error deleting rules: ${error.response ? error.response.data.error : error.message}`;
+    }
+}
+// Initial fetch of rules
+    fetchRules();
+</script>
+</body>
+</html>
